@@ -1,16 +1,17 @@
-# Menggunakan Node.js versi LTS sebagai base image
-FROM node:18-alpine
+# 1. Use the official Node.js image (Version 22 matches your local version)
+FROM node:22-alpine
 
-# Set working directory di dalam container
-WORKDIR /app
+# 2. Create and set the working directory inside the container
+WORKDIR /usr/src/app
 
-# Copy package.json dan package-lock.json
+# 3. Copy package.json and package-lock.json first 
+# (This makes building faster by caching dependencies)
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# 4. Install the dependencies (express, etc.)
+RUN npm install
 
-# Copy seluruh source code ke container
+# 5. Copy the rest of your API code (API.js)
 COPY . .
 
 # Expose port yang digunakan aplikasi (sesuai dengan server.js)
@@ -20,4 +21,4 @@ EXPOSE 6767
 ENV NODE_ENV=production
 
 # Command untuk menjalankan aplikasi
-CMD ["npm", "start"]
+CMD ["node", "server.js"]
