@@ -24,7 +24,7 @@ const parseGenres = (genreStr) => {
 app.get("/anime", (req, res) => {
     const q = req.query.q;
     // Disini SELECT * lebih aman biar kalau mau nampilin gambar/genre di frontend bisa
-    let sql = "SELECT animeID, title, score FROM anime"; 
+    let sql = "SELECT animeID, title, score, image_url, genres FROM anime"; 
     let params = [];
 
     if (q) {
@@ -66,8 +66,8 @@ app.get("/anime/:id", (req, res, next) => {
 
 // 3. GET ANIME BY TITLE
 app.get("/anime/:title", (req, res) => {
-    // PERBAIKAN: Tambahkan WHERE clause
-    const sql = "SELECT animeID, title, score FROM anime WHERE LOWER(title) LIKE ?";
+    // PERBAIKAN: Tambahkan WHERE clause dan include image_url
+    const sql = "SELECT animeID, title, score, image_url, genres FROM anime WHERE LOWER(title) LIKE ?";
     const params = ['%' + req.params.title.toLowerCase() + '%'];
     
     db.all(sql, params, (err, rows) => {

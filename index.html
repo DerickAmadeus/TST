@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnimeSync Dashboard</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: white; margin: 0; display: flex; }
+        .sidebar { width: 300px; background: #1e1e1e; height: 100vh; padding: 20px; border-right: 1px solid #333; overflow-y: auto; }
+        .main { flex-grow: 1; padding: 20px; }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        .card { background: #252525; padding: 0; border-radius: 12px; border: 1px solid #444; overflow: hidden; transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(233, 30, 99, 0.3); }
+        .card-image { width: 100%; height: 250px; object-fit: cover; background: #333; }
+        .card-content { padding: 15px; }
+        .card h4 { margin: 10px 0; font-size: 1.1em; line-height: 1.3; }
+        input { width: 100%; padding: 10px; background: #333; border: none; color: white; border-radius: 4px; box-sizing: border-box; }
+        .search-bar { 
+            max-width: 500px; 
+            margin: 0 auto 30px; 
+            position: relative; 
+        }
+        .search-bar input {
+            padding: 15px 50px 15px 20px;
+            font-size: 1.1em;
+            border: 1px solid #444;
+            border-radius: 8px;
+            transition: border-color 0.3s ease;
+        }
+        .search-bar input:focus {
+            outline: none;
+            border-color: #e91e63;
+            box-shadow: 0 0 10px rgba(233, 30, 99, 0.3);
+        }
+        .search-icon {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #aaa;
+            font-size: 1.2em;
+        }
+        .search-results-info {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #aaa;
+            font-size: 0.9em;
+        }
+        button { background: #e91e63; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-top: 10px; width: 100%; }
+        button:hover { background: #c2185b; }
+        .collection-item { background: #333; padding: 10px; margin-bottom: 10px; border-radius: 5px; font-size: 0.9em; display: flex; gap: 12px; align-items: flex-start; }
+        .collection-item img { width: 60px; height: 85px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+        .collection-info { flex: 1; }
+        .tag { background: #444; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>My collection</h2>
+        <div id="collection-container">Loading your list...</div>
+    </div>
+
+    <div class="main">
+        <h1>Anime Explorer</h1>
+        
+        <div class="search-bar">
+            <input type="text" id="search-input" placeholder="Search anime by title..." onkeyup="debounceSearch()">
+            <span class="search-icon">🔍</span>
+        </div>
+        
+        <div id="search-results-info" class="search-results-info"></div>
+        
+        <h3 id="status-text">All Anime</h3>
+        <div class="card-grid" id="anime-display"></div>
+    </div>
+
+    <script>
+        const LIBRARY_API = "http://localhost:6767";
+        const TRACKER_API = "http://saber.theokaitou.my.id";
+        const CURRENT_USER = 1;
+        
+        let searchTimeout;
+        let currentController = null; // For aborting previous requests
+        let lastQuery = ''; // To avoid duplicate searches
+
+        // Optimized debounced search function
+        function debounceSearch() {
+            clearTimeout(searchTimeout);
+            
+            const query = document.getElementById('search-input').value.trim();
+            
+            // Skip if same query
+            if (query === lastQuery) return;
+            
+            // Shorter delay for better responsiveness
+            const delay = query.length < 3 ? 300 : 150;
+            searchTimeout = setTimeout(() => performSearch(query), delay);
+        }
+
+        // Optimized search function with request cancellation
+        async function performSearch(query = null) {
+            // Get query if not provided
+            if (query === null) {
+                query = document.getElementById('search-input').value.trim();
+            }
+            
+            // Update last query
+            lastQuery = query;
+            
+            // Cancel previous request
+            if (currentController) {
+                currentController.abort();
+            }
+            currentController = new AbortController();
+            
+            const statusText = document.getElementById('status-text');
+            const resultsInfo = document.getElementById('search-results-info');
+            const container = document.getElementById('anime-display');
+            
+            try {
+                let animeData = [];
+                
+                if (query) {
+                    // Show loading only for longer searches
+                    if (query.length >= 3) {
+                        container.innerHTML = '<div style="text-align: center; padding: 20px; color: #aaa; font-size: 0.9em;">🔍 Searching...</div>';
+                    }
+                    
+                    // Use more efficient single API call approach
+                    // Try general search first as it's usually more comprehensive
+                    const response = await fetch(`${LIBRARY_API}/anime?q=${encodeURIComponent(query)}`, {
+                        signal: currentController.signal
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        animeData = data.data || [];
+                    }
+                    
+                    statusText.textContent = `Search Results for "${query}"`;
+                    resultsInfo.textContent = `Found ${animeData.length} anime(s)`;
+                } else {
+                    // Load all anime when no search query
+                    const response = await fetch(`${LIBRARY_API}/anime`, {
+                        signal: currentController.signal
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        animeData = data.data || [];
+                    }
+                    
+                    statusText.textContent = 'All Anime';
+                    resultsInfo.textContent = `Showing ${animeData.length} anime(s)`;
+                }
+                
+                displayAnime(animeData);
+                
+            } catch (error) {
+                // Ignore abort errors
+                if (error.name === 'AbortError') return;
+                
+                console.error('Search error:', error);
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #ff6b6b;">
+                        ❌ Search failed<br>
+                        <small style="opacity: 0.8;">${error.message}</small>
+                    </div>
+                `;
+                resultsInfo.textContent = 'Search failed';
+            } finally {
+                currentController = null;
+            }
+        }
+
+        // Legacy function for compatibility
+        function searchAnime() {
+            debounceSearch();
+        }
+
+        function displayAnime(list) {
+            const container = document.getElementById('anime-display');
+            container.innerHTML = '';
+            list.forEach(anime => {
+                const imageUrl = anime.image_url || 'https://via.placeholder.com/200x280/333/fff?text=No+Image';
+                container.innerHTML += `
+                    <div class="card">
+                        <img src="${imageUrl}" alt="${anime.title}" class="card-image" onerror="this.src='https://via.placeholder.com/200x280/333/fff?text=No+Image'">
+                        <div class="card-content">
+                            <h4>${anime.title}</h4>
+                            <p>Score: ⭐ ${anime.score || 'N/A'}</p>
+                            <p style="font-size: 0.8em; color: #aaa; margin: 5px 0;">ID: ${anime.animeID}</p>
+                            <button onclick="addTocollection(${anime.animeID})">Add to collection</button>
+                            <button onclick="viewAnimeDetails(${anime.animeID})" style="background: #2196F3; margin-top: 5px;">See Details</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // --- FUNCTIONS FOR API 2 (TRACKER) ---
+        async function addTocollection(id) {
+            const response = await fetch(`${TRACKER_API}/collection/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: CURRENT_USER,
+                    animeId: id,
+                    status: "watching"
+                })
+            });
+            if (response.ok) {
+                alert("Added!");
+                loadcollection(); // Refresh the sidebar
+            }
+        }
+
+        // Navigate to details page
+        function viewAnimeDetails(animeId) {
+            window.open(`details.html?id=${animeId}`, '_blank');
+        }
+
+        async function loadcollection() {
+            try {
+                const res = await fetch(`${TRACKER_API}/collection/${CURRENT_USER}`);
+                const data = await res.json();
+                const container = document.getElementById('collection-container');
+                container.innerHTML = '<div style="color: #aaa;">Loading collection...</div>';
+                
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div style="color: #aaa;">No items in collection</div>';
+                    return;
+                }
+                
+                container.innerHTML = '';
+                
+                // Fetch anime details for each item
+                for (const item of data) {
+                    try {
+                        const animeRes = await fetch(`${LIBRARY_API}/anime/${item.itemId}`);
+                        const animeData = await animeRes.json();
+                        
+                        const animeName = animeData.data ? animeData.data.title : `Anime ID: ${item.itemId}`;
+                        const imageUrl = animeData.data ? animeData.data.image_url : 'https://via.placeholder.com/60x85/333/fff?text=No+Image';
+                        
+                        container.innerHTML += `
+                            <div class="collection-item" onclick="viewAnimeDetails(${item.itemId})" style="cursor: pointer;">
+                                <img src="${imageUrl}" alt="${animeName}" onerror="this.src='https://via.placeholder.com/60x85/333/fff?text=No+Image'">
+                                <div class="collection-info">
+                                    <strong>${animeName}</strong><br>
+                                    <small style="color: #aaa;">ID: ${item.itemId}</small><br>
+                                    Status: <span class="tag">${item.status}</span><br>
+                                    Progress: Ep ${item.progress || 0}
+                                </div>
+                            </div>
+                        `;
+                    } catch (error) {
+                        console.error(`Failed to fetch anime ${item.itemId}:`, error);
+                        container.innerHTML += `
+                            <div class="collection-item">
+                                <img src="https://via.placeholder.com/60x85/333/fff?text=Error" alt="Error loading">
+                                <div class="collection-info">
+                                    <strong>Anime ID: ${item.itemId}</strong><br>
+                                    <small style="color: #f44;">Failed to load title</small><br>
+                                    Status: <span class="tag">${item.status}</span><br>
+                                    Progress: Ep ${item.progress || 0}
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load collection:', error);
+                document.getElementById('collection-container').innerHTML = '<div style="color: #f44;">Failed to load collection</div>';
+            }
+        }
+
+        // Initial Load
+        performSearch(); // Load all anime initially
+        loadcollection();
+    </script>
+</body>
+</html>
