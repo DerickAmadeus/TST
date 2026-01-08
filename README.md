@@ -28,3 +28,10 @@ Fokus utama layanan ini bukan hanya sekadar *data fetching*, melainkan menyediak
 * **Database:** SQLite3
 * **Library Pendukung:** `cors` (untuk keamanan akses).
 
+
+Link microservice :  http://udinbanda.theokaitou.my.id
+Available Endpoints : 
+1. /anime (ex : http://udinbanda.theokaitou.my.id/anime)
+2. /anime/:id (ex : http://udinbanda.theokaitou.my.id/anime/1)
+3. /anime/:title (ex : http://udinbanda.theokaitou.my.id/naruto)
+4. /recommend/:id (ex : http://udinbanda.theokaitou.my.id/recommend/1)
